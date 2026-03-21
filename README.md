@@ -1,24 +1,28 @@
-# LiveTracker — Global Transport Monitor
+# SatTracker — Real-Time 3D Satellite Tracker
 
-Real-time aircraft, vessel, and train tracking on an interactive 2D/3D globe.
+Real-time tracking of thousands of satellites orbiting Earth on an interactive 3D globe with realistic lighting, seasonal effects, and detailed orbital data.
 
 ## Features
 
-- **3D Globe & 2D Map** — d3 orthographic globe and Natural Earth projection, switchable
-- **OpenSky Network integration** — Live aircraft data from OpenSky REST API (anonymous, no auth required)
-- **Simulated vessels & trains** — 60 vessels on global shipping lanes, 30 trains across Europe & East Asia
-- **World geometry** — Accurate land outlines loaded from [world-atlas](https://github.com/topojson/world-atlas) (Natural Earth 110m)
-- **Interactive** — Pan/rotate, zoom, click entities for detail panel, search, filter by type/status
+- **3D Globe** — Three.js rendered Earth with NASA Blue Marble textures (5400×2700), cloud layer, and atmospheric glow
+- **Real satellite data** — Live TLE data from CelesTrak for ~4000+ satellites across 9 groups (Starlink, GPS, ISS, military, weather, and more)
+- **SGP4/SDP4 propagation** — Accurate orbital position computation using satellite.js, updated every 3 seconds
+- **Day/night cycle** — Custom GLSL shader with real-time sun position, smooth terminator, and city lights on the dark side
+- **Seasonal effects** — Dynamic snow cover, ice cap expansion, and vegetation changes based on current date and solar declination
+- **3D satellite models** — Detailed models with solar panels and antennas for selected/hovered satellites, instanced rendering for thousands of others
+- **Orbital visualization** — Full orbit path rendering with gradient fade, ground footprint circle, and ground-to-satellite link
+- **Camera fly-to** — Smooth animated camera transition when selecting a satellite
+- **Interactive** — Click/hover satellites, search by name or NORAD ID, filter by group
+- **Detail panel** — Position (lat/lon/alt), velocity, orbital period, orbit type (LEO/MEO/GEO/HEO), TLE data, N2YO link
 - **Dark & light theme** — Toggle between dark ops dashboard and light mode
-- **Collapsible panels** — Left filter panel slides away, detail panel on right
-- **Trail rendering** — Historical path visualization for selected entity
 
 ## Tech Stack
 
-- **Next.js 14** — App Router, React Server Components
+- **Next.js 14** — App Router with API route as server-side proxy for CelesTrak
 - **React 18** — Client components with hooks
 - **TypeScript** — End-to-end type safety
-- **d3 / d3-geo** — Map projections, SVG rendering, geographic path generation
+- **Three.js** — 3D globe rendering, InstancedMesh for performance, custom GLSL shaders
+- **satellite.js** — SGP4/SDP4 orbital propagation from TLE data
 - **Zustand** — Lightweight state management
 - **Lucide React** — Icon library
 
@@ -26,7 +30,7 @@ Real-time aircraft, vessel, and train tracking on an interactive 2D/3D globe.
 
 ```bash
 # Install dependencies
-npm install
+npm install --legacy-peer-deps
 
 # Run development server
 npm run dev
@@ -39,59 +43,63 @@ npm run dev
 ```
 src/
 ├── app/
-│   ├── globals.css          # Global styles + fonts
-│   ├── layout.tsx           # Root layout with metadata
-│   └── page.tsx             # Main page — assembles all components
+│   ├── api/satellites/
+│   │   └── route.ts           # Server-side proxy for CelesTrak TLE API
+│   ├── globals.css            # Global styles + fonts
+│   ├── layout.tsx             # Root layout with metadata
+│   └── page.tsx               # Main page — assembles all components
 ├── components/
+│   ├── globe/
+│   │   └── GlobeView.tsx      # Three.js 3D globe, satellite rendering, shaders
 │   ├── layout/
-│   │   ├── TopBar.tsx       # Navigation bar with controls
-│   │   └── BottomBar.tsx    # Legend, zoom indicator, status banner
-│   ├── map/
-│   │   └── MapView.tsx      # SVG globe/map with markers, trails, tooltips
+│   │   ├── TopBar.tsx         # Group filter toggles, orbit toggle, controls
+│   │   └── BottomBar.tsx      # Legend with group colors, satellite count by group
 │   ├── panels/
-│   │   ├── LeftPanel.tsx    # Search, filters, entity list
-│   │   └── DetailPanel.tsx  # Selected entity detail view
+│   │   ├── LeftPanel.tsx      # Search, satellite list (sortable, filterable)
+│   │   └── DetailPanel.tsx    # Selected satellite detail view
 │   └── ui/
-│       └── Button.tsx       # Reusable Button and Tag primitives
+│       └── Button.tsx         # Reusable Button primitive
 ├── hooks/
-│   ├── useOpenSky.ts        # OpenSky API fetching (15s refresh)
-│   ├── useSimulation.ts     # Vessel/train movement simulation
-│   ├── useWorldGeo.ts       # World-atlas TopoJSON loading
-│   └── useMapInteraction.ts # Drag/zoom mouse handlers
+│   └── useSatellites.ts       # TLE fetching (30min refresh), SGP4 propagation (3s)
 ├── lib/
-│   ├── theme.ts             # Design tokens / color system
-│   ├── format.ts            # Speed, altitude, time formatters + type helpers
-│   ├── geo.ts               # Great-circle interpolation, point validation
-│   ├── topojson.ts          # Minimal TopoJSON → GeoJSON decoder
-│   ├── opensky.ts           # OpenSky API state vector parser
-│   └── generate.ts          # Simulated data generator (vessels, trains)
+│   ├── satellite.ts           # TLE parser, SGP4 propagation, orbit computation
+│   ├── theme.ts               # Design tokens / color system per satellite group
+│   └── format.ts              # Time formatter
 ├── stores/
-│   └── useStore.ts          # Zustand global store
-└── types/
-    └── index.ts             # TypeScript type definitions
+│   └── useStore.ts            # Zustand global store
+├── types/
+│   └── index.ts               # TypeScript type definitions
+public/
+└── textures/
+    ├── earth-day-8k.jpg       # NASA Blue Marble day texture
+    ├── earth-night-5k.jpg     # City lights at night
+    ├── earth-clouds-4k.jpg    # Cloud cover overlay
+    └── earth-topo-8k.jpg      # Topography + bathymetry
 ```
 
-## OpenSky Network API
+## Satellite Data
 
-Aircraft data comes from the [OpenSky Network REST API](https://openskynetwork.github.io/opensky-api/rest.html):
+All satellite data comes from [CelesTrak](https://celestrak.org/), fetched as TLE (Two-Line Element) sets and propagated client-side using SGP4.
 
-- **Endpoint:** `GET https://opensky-network.org/api/states/all`
-- **Rate limit:** 400 credits/day (anonymous), 4000/day (authenticated)
-- **Data:** ICAO24, callsign, country, lat/lon, altitude, velocity, heading, vertical rate, on-ground status
-- **Update interval:** Every 15 seconds in this app (API resolution is 10s for anonymous)
+| Group | Examples | Source |
+|-------|----------|--------|
+| Stations | ISS, Tiangong | CelesTrak `stations` |
+| Starlink | SpaceX Starlink constellation | CelesTrak `starlink` |
+| OneWeb | OneWeb constellation | CelesTrak `oneweb` |
+| GNSS | GPS, GLONASS, Galileo, BeiDou | CelesTrak `gps-ops`, `glo-ops`, `galileo`, `beidou` |
+| Comms | Iridium, Intelsat, SES, GEO sats | CelesTrak `geo`, `intelsat`, `iridium-NEXT`, ... |
+| Weather | NOAA, GOES, Meteosat | CelesTrak `weather`, `noaa`, `goes` |
+| Science | Scientific & geodetic satellites | CelesTrak `science`, `geodetic` |
+| Military | Military & radar satellites | CelesTrak `military`, `radar` |
+| Other | CubeSats, Planet, Spire | CelesTrak `cubesat`, `planet`, `spire` |
 
-> **Note:** The OpenSky API may be blocked by browser CORS policies when called directly from the frontend. In production, proxy the API through your backend. The app gracefully falls back to simulated data if the API is unreachable.
+## Performance
 
-## Data Sources & Limitations
-
-| Source | Type | Status | Cost |
-|--------|------|--------|------|
-| OpenSky Network | Aircraft | Live API | Free (rate limited) |
-| Simulated | Vessels | Generated routes | Free |
-| Simulated | Trains | Generated routes | Free |
-
-For real vessel data, integrate [AISHub](https://www.aishub.net/) or [MarineTraffic API](https://www.marinetraffic.com/en/ais-api-services) (paid).
-For real train data, integrate [GTFS-RT](https://gtfs.org/realtime/) feeds from transit agencies (free, per-agency).
+- **InstancedMesh** — One draw call per satellite group instead of individual meshes for each satellite
+- **Ref-based state** — Satellite data stored in React refs to avoid triggering re-renders on position updates
+- **Conditional rebuilds** — Full scene rebuild only on selection/group changes; position-only matrix updates every 3 seconds
+- **Throttled hover** — Raycasting checked every 3rd animation frame
+- **DevicePixelRatio cap** — Capped at 2× for consistent performance
 
 ## License
 
