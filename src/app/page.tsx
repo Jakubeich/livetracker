@@ -12,7 +12,7 @@ export default function HomePage() {
   const setDims = useStore(s => s.setDims);
 
   useEffect(() => {
-    const update = () => setDims({ w: window.innerWidth, h: window.innerHeight - 48 });
+    const update = () => setDims({ w: window.innerWidth, h: window.innerHeight - 56 });
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);

@@ -8,28 +8,34 @@ interface ButtonProps {
   onClick?: () => void;
   style?: React.CSSProperties;
   title?: string;
+  size?: "sm" | "md";
 }
 
-export function Button({ active, color, children, onClick, style, title }: ButtonProps) {
+export function Button({ active, color, children, onClick, style, title, size = "sm" }: ButtonProps) {
+  const c = color || theme.accent;
+  const pad = size === "md" ? "7px 14px" : "5px 11px";
+  const fs = size === "md" ? 12 : 11;
+
   return (
     <button
       onClick={onClick}
       title={title}
       style={{
-        padding: "4px 9px",
-        borderRadius: 5,
-        border: `1px solid ${active ? (color || theme.starlink) : theme.brd}`,
-        background: active ? `${color || theme.starlink}20` : "transparent",
-        color: active ? (color || theme.starlink) : theme.t2,
+        padding: pad,
+        borderRadius: 8,
+        border: `1px solid ${active ? `${c}60` : theme.brd}`,
+        background: active ? `${c}18` : `${theme.bg2}80`,
+        color: active ? c : theme.t2,
         cursor: "pointer",
-        fontSize: 10,
+        fontSize: fs,
         fontWeight: 600,
-        letterSpacing: 0.5,
-        display: "flex",
+        letterSpacing: 0.3,
+        display: "inline-flex",
         alignItems: "center",
-        gap: 4,
+        gap: 5,
         whiteSpace: "nowrap",
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "'Inter', system-ui, sans-serif",
+        backdropFilter: "blur(8px)",
         ...style,
       }}
     >
@@ -49,14 +55,15 @@ export function Tag({ color, children }: TagProps) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 3,
-        padding: "1px 7px",
-        borderRadius: 10,
-        fontSize: 9,
+        gap: 4,
+        padding: "3px 10px",
+        borderRadius: 12,
+        fontSize: 11,
         fontWeight: 600,
-        background: `${color}20`,
+        background: `${color}18`,
         color,
         border: `1px solid ${color}30`,
+        letterSpacing: 0.2,
       }}
     >
       {children}

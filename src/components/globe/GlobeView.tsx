@@ -296,15 +296,6 @@ export function GlobeView() {
         })
       ));
 
-      // Stars
-      const starsGeo = new THREE.BufferGeometry();
-      const sp = new Float32Array(5000 * 3);
-      for (let i = 0; i < 5000; i++) {
-        const r = 25 + Math.random() * 30, t = Math.random() * Math.PI * 2, p = Math.acos(2 * Math.random() - 1);
-        sp[i*3]=r*Math.sin(p)*Math.cos(t); sp[i*3+1]=r*Math.sin(p)*Math.sin(t); sp[i*3+2]=r*Math.cos(p);
-      }
-      starsGeo.setAttribute("position", new THREE.BufferAttribute(sp, 3));
-      scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.06, sizeAttenuation: true, transparent: true, opacity: 0.85 })));
 
       // --- Mouse ---
       const el = renderer.domElement;
