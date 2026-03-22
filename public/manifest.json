@@ -1,0 +1,19 @@
+{
+  "name": "SatTracker — Real-Time 3D Satellite Tracker",
+  "short_name": "SatTracker",
+  "description": "Track thousands of real satellites orbiting Earth in real-time on an interactive 3D globe with orbital paths, pass predictions, and detailed data.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#818cf8",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "science", "utilities"]
+}

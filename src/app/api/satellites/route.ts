@@ -28,7 +28,14 @@ async function fetchGroup(group: string): Promise<string> {
   try {
     const res = await fetch(
       `${CELESTRAK}?GROUP=${group}&FORMAT=tle`,
-      { next: { revalidate: 0 }, signal: AbortSignal.timeout(15000) }
+      {
+        next: { revalidate: 0 },
+        signal: AbortSignal.timeout(15000),
+        headers: {
+          "User-Agent": "SatTracker/1.0 (satellite-tracker; educational)",
+          "Accept": "text/plain, */*",
+        },
+      }
     );
     if (!res.ok) return "";
     const text = await res.text();

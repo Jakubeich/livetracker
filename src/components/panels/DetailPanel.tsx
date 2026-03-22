@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useStore } from "@/stores/useStore";
 import { theme } from "@/lib/theme";
 import { Button } from "@/components/ui/Button";
-import { X, ExternalLink, Satellite, MapPin, Gauge, Clock, Globe2 } from "lucide-react";
+import { X, ExternalLink, Satellite, MapPin, Clock, Globe2, Locate } from "lucide-react";
 import type { SatGroup } from "@/types";
 
 const GROUP_COLORS: Record<SatGroup, string> = {
@@ -70,6 +70,9 @@ export function DetailPanel() {
   const selectedId = useStore(s => s.selectedId);
   const setSelectedId = useStore(s => s.setSelectedId);
   const satellites = useStore(s => s.satellites);
+  const followMode = useStore(s => s.followMode);
+  const setFollowMode = useStore(s => s.setFollowMode);
+
 
   const sat = useMemo(() => satellites.find(s => s.id === selectedId), [satellites, selectedId]);
 
@@ -202,6 +205,25 @@ export function DetailPanel() {
           {sat.tle1}<br />{sat.tle2}
         </div>
       </Section>
+
+      {/* Follow button */}
+      <div style={{ padding: "4px 18px 0" }}>
+        <button
+          onClick={() => setFollowMode(!followMode)}
+          style={{
+            width: "100%", padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+            border: followMode ? `1px solid ${T.ok}50` : `1px solid ${T.brd}`,
+            background: followMode ? `${T.ok}12` : `${T.bg2}80`,
+            color: followMode ? T.ok : T.t2,
+            fontSize: 12, fontWeight: 600,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            transition: "all 0.2s ease",
+          }}
+        >
+          <Locate size={14} style={followMode ? { animation: "pulse 1.5s infinite" } : undefined} />
+          {followMode ? "Following..." : "Follow satellite (G)"}
+        </button>
+      </div>
 
       {/* Actions */}
       <div style={{

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useCallback } from "react";
 import { useStore } from "@/stores/useStore";
-import { parseTLE, updatePositions } from "@/lib/satellite";
+import { parseTLE, updatePositionsAt } from "@/lib/satellite";
 import type { SatelliteRecord, SatGroup } from "@/types";
 
 const GROUPS_TO_FETCH: SatGroup[] = [
@@ -81,11 +81,21 @@ export function useSatellites() {
     return () => clearInterval(tleInterval);
   }, [fetchAll]);
 
-  // Propagate positions every 3 seconds
+  // Propagate positions every 3 seconds, using timeOffset and simSpeed
   useEffect(() => {
     propagateRef.current = setInterval(() => {
       if (satsRef.current.length === 0) return;
-      const updated = updatePositions(satsRef.current);
+      const { timeOffset, paused, simSpeed } = useStore.getState();
+      if (paused) return;
+
+      // Advance offset by 3s * simSpeed for non-realtime
+      if (simSpeed !== 1 || timeOffset !== 0) {
+        const newOffset = timeOffset + 3000 * simSpeed;
+        useStore.getState().setTimeOffset(newOffset);
+      }
+
+      const simTime = new Date(Date.now() + useStore.getState().timeOffset);
+      const updated = updatePositionsAt(satsRef.current, simTime);
       satsRef.current = updated;
       setSatellites(updated);
     }, 3000);

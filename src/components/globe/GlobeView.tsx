@@ -17,8 +17,8 @@ const EARTH_SPEC = "https://unpkg.com/three-globe@2.31.1/example/img/earth-water
 const CLOUDS_TEX = "/textures/earth-clouds-4k.jpg";
 const NIGHT_TEX = "/textures/earth-night-5k.jpg";
 
-function getSunInfo(): { direction: [number, number, number]; seasonFactor: number } {
-  const now = new Date();
+function getSunInfo(timeOffset: number = 0): { direction: [number, number, number]; seasonFactor: number } {
+  const now = new Date(Date.now() + timeOffset);
   const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
   const hourUTC = now.getUTCHours() + now.getUTCMinutes() / 60;
   const sunLon = -((hourUTC / 24) * 360 - 180);
@@ -187,9 +187,11 @@ export function GlobeView() {
           seasonFactor: { value: sunInfo.seasonFactor },
         },
         vertexShader: `
-          varying vec2 vUv; varying vec3 vNormal; varying vec3 vWorldPos;
+          varying vec2 vUv; varying vec3 vNormal; varying vec3 vWorldPos; varying vec3 vWorldNormal;
           void main() {
-            vUv = uv; vNormal = normalize(normalMatrix * normal);
+            vUv = uv;
+            vNormal = normalize(normalMatrix * normal);
+            vWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
             vWorldPos = (modelMatrix * vec4(position,1.0)).xyz;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
           }`,
@@ -198,10 +200,10 @@ export function GlobeView() {
           uniform vec3 sunDirection;
           uniform float seasonFactor; // -1 = N.winter, +1 = N.summer
 
-          varying vec2 vUv; varying vec3 vNormal; varying vec3 vWorldPos;
+          varying vec2 vUv; varying vec3 vNormal; varying vec3 vWorldPos; varying vec3 vWorldNormal;
 
           void main() {
-            float d = dot(normalize(vNormal), sunDirection);
+            float d = dot(normalize(vWorldNormal), sunDirection);
             float dayF = smoothstep(-0.15, 0.2, d);
             vec3 day = texture2D(dayTexture, vUv).rgb;
             vec3 night = texture2D(nightTexture, vUv).rgb * 1.5;
@@ -303,7 +305,10 @@ export function GlobeView() {
       el.addEventListener("mousemove", (e: MouseEvent) => {
         if (mouseRef.current.down) {
           const dx = e.clientX - mouseRef.current.x, dy = e.clientY - mouseRef.current.y;
-          if (Math.abs(dx) > 2 || Math.abs(dy) > 2) mouseRef.current.moved = true;
+          if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+            mouseRef.current.moved = true;
+            if (useStore.getState().followMode) useStore.getState().setFollowMode(false);
+          }
           mouseRef.current.rotX += dx * 0.005;
           mouseRef.current.rotY = Math.max(-1.4, Math.min(1.4, mouseRef.current.rotY + dy * 0.005));
           mouseRef.current.x = e.clientX; mouseRef.current.y = e.clientY;
@@ -357,10 +362,12 @@ export function GlobeView() {
 
         if (cloudsRef.current) cloudsRef.current.rotation.y += 0.00008;
 
-        // Update sun every 10 seconds
-        if (time - lastUpdateTime > 10000) {
+        // Update sun — every frame when time is shifted, otherwise every 10s
+        const currentOffset = useStore.getState().timeOffset;
+        const sunInterval = (currentOffset !== 0 || useStore.getState().simSpeed > 1) ? 100 : 10000;
+        if (time - lastUpdateTime > sunInterval) {
           lastUpdateTime = time;
-          const si = getSunInfo();
+          const si = getSunInfo(currentOffset);
           const sd = si.direction;
           if (sunLightRef.current) sunLightRef.current.position.set(...sd);
           if (globeRef.current?.material?.uniforms?.sunDirection) {
@@ -382,6 +389,18 @@ export function GlobeView() {
           targetZoomRef.current = lerp(fly.startZoom, fly.endZoom, t);
           zoomRef.current = targetZoomRef.current;
           if (fly.progress >= 1) fly.active = false;
+        }
+
+        // Follow mode — smoothly track selected satellite
+        if (useStore.getState().followMode && selectedIdRef.current && !fly?.active) {
+          const sat = satsRef.current.find(s => s.id === selectedIdRef.current);
+          if (sat) {
+            const [x, y, z] = latLonToVec3(sat.lat, sat.lon, 0);
+            const targetRotX = Math.atan2(x, z);
+            const targetRotY = Math.asin(Math.max(-0.99, Math.min(0.99, y)));
+            mouseRef.current.rotX = lerp(mouseRef.current.rotX, targetRotX, 0.05);
+            mouseRef.current.rotY = lerp(mouseRef.current.rotY, targetRotY, 0.05);
+          }
         }
 
         // Camera

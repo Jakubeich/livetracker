@@ -70,11 +70,17 @@ function propagateAt(
  * Update positions for all satellites at current time.
  */
 export function updatePositions(sats: SatelliteRecord[]): SatelliteRecord[] {
-  const now = new Date();
+  return updatePositionsAt(sats, new Date());
+}
+
+/**
+ * Update positions for all satellites at a specific time.
+ */
+export function updatePositionsAt(sats: SatelliteRecord[], date: Date): SatelliteRecord[] {
   return sats.map(sat => {
     try {
       const satrec = satellite.twoline2satrec(sat.tle1, sat.tle2);
-      const pos = propagateAt(satrec, now);
+      const pos = propagateAt(satrec, date);
       if (!pos) return sat;
       return { ...sat, lat: pos.lat, lon: pos.lon, alt: pos.alt, velocity: pos.velocity };
     } catch {
@@ -140,4 +146,105 @@ export function latLonToVec3(lat: number, lon: number, alt: number = 0): [number
     R * Math.cos(phi),
     R * Math.sin(phi) * Math.sin(theta),
   ];
+}
+
+/**
+ * Predict visible satellite passes over a ground location.
+ * Returns passes for the next 24 hours where max elevation > minElevation.
+ */
+export interface SatPass {
+  satId: string;
+  satName: string;
+  group: SatGroup;
+  startTime: Date;
+  peakTime: Date;
+  endTime: Date;
+  peakElevation: number;
+  peakAzimuth: number;
+}
+
+export function predictPasses(
+  sats: SatelliteRecord[],
+  observerLat: number,
+  observerLon: number,
+  hoursAhead: number = 24,
+  minElevation: number = 10,
+): SatPass[] {
+  const passes: SatPass[] = [];
+  const now = new Date();
+  const end = new Date(now.getTime() + hoursAhead * 3600000);
+  const stepMs = 30000; // 30-second steps
+
+  const observerGd = {
+    latitude: observerLat * (Math.PI / 180),
+    longitude: observerLon * (Math.PI / 180),
+    height: 0,
+  };
+
+  // Only check interesting satellites (stations, visible large sats)
+  // Limit to avoid too long computation
+  const candidates = sats.filter(s =>
+    s.group === "stations" || s.group === "science" || s.group === "weather" ||
+    s.group === "military" || s.group === "gps"
+  ).slice(0, 200);
+
+  for (const sat of candidates) {
+    try {
+      const satrec = satellite.twoline2satrec(sat.tle1, sat.tle2);
+      let inPass = false;
+      let passStart = now;
+      let peakEl = 0;
+      let peakAz = 0;
+      let peakTime = now;
+
+      for (let t = now.getTime(); t < end.getTime(); t += stepMs) {
+        const date = new Date(t);
+        const posVel = satellite.propagate(satrec, date);
+        if (!posVel || !posVel.position || typeof posVel.position === "boolean") continue;
+
+        const gmst = satellite.gstime(date);
+        const posEci = posVel.position as satellite.EciVec3<number>;
+        const lookAngles = satellite.ecfToLookAngles(
+          observerGd,
+          satellite.eciToEcf(posEci, gmst)
+        );
+
+        const elevation = lookAngles.elevation * (180 / Math.PI);
+        const azimuth = lookAngles.azimuth * (180 / Math.PI);
+
+        if (elevation > minElevation) {
+          if (!inPass) {
+            inPass = true;
+            passStart = date;
+            peakEl = elevation;
+            peakAz = azimuth;
+            peakTime = date;
+          }
+          if (elevation > peakEl) {
+            peakEl = elevation;
+            peakAz = azimuth;
+            peakTime = date;
+          }
+        } else if (inPass) {
+          passes.push({
+            satId: sat.id,
+            satName: sat.name,
+            group: sat.group,
+            startTime: passStart,
+            peakTime,
+            endTime: date,
+            peakElevation: peakEl,
+            peakAzimuth: peakAz,
+          });
+          inPass = false;
+          peakEl = 0;
+        }
+      }
+    } catch {
+      // skip
+    }
+  }
+
+  passes.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  return passes.slice(0, 50);
 }
